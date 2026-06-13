@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { ChoirSection, MemberStatus } from '@prisma/client';
+import { ChoirSection, MemberStatus } from '.prisma/client';
 
 // GET /api/members/[id]
 // Fetches detailed information of a member

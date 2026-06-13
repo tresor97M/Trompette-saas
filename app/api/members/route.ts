@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { ChoirSection, MemberStatus, Member } from '@prisma/client';
+import { ChoirSection, MemberStatus, Member } from '.prisma/client';
 
 // Helper to find or create the default test church
 async function getOrCreateTestChurch() {
