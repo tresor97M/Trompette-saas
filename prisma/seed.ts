@@ -130,6 +130,89 @@ async function main() {
     console.log(`👤 Created member: ${member.firstName} ${member.lastName} (${member.choirSection})`);
   }
 
+  // 4. Clear existing songs
+  await prisma.song.deleteMany({
+    where: { churchId: church.id },
+  });
+  console.log('🧹 Cleaned existing songs for test church.');
+
+  // 5. Create test songs
+  const testSongs = [
+    {
+      title: 'Agneau de Dieu',
+      titleFR: 'Agneau de Dieu',
+      author: 'Dena Mwana',
+      composer: 'Dena Mwana',
+      themes: ['Adoration', 'Jésus', 'Croix'],
+      bibleReferences: ['Jean 1:29', 'Apocalypse 5:12'],
+      key: 'G',
+      tempo: 68,
+      timeSignature: '4/4',
+      language: 'FR' as const,
+      style: 'HYMN' as const,
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      pdfScoreUrl: 'https://pdfobject.com/pdf/sample.pdf',
+      createdBy: 'seed',
+    },
+    {
+      title: 'Way Maker',
+      titleFR: 'Celui qui fraye un chemin',
+      author: 'Sinach',
+      composer: 'Sinach',
+      themes: ['Louange', 'Foi', 'Miracle'],
+      bibleReferences: ['Exode 15:2', 'Ésaïe 43:19'],
+      key: 'A',
+      tempo: 66,
+      timeSignature: '4/4',
+      language: 'EN' as const,
+      style: 'CONTEMPORARY' as const,
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      pdfScoreUrl: 'https://pdfobject.com/pdf/sample.pdf',
+      createdBy: 'seed',
+    },
+    {
+      title: 'Jésus soit loué',
+      titleFR: 'Jésus soit loué',
+      author: 'Excellence',
+      composer: null,
+      themes: ['Action de grâce', 'Célébration'],
+      bibleReferences: ['Psaume 150:6'],
+      key: 'F#',
+      tempo: 120,
+      timeSignature: '4/4',
+      language: 'FR' as const,
+      style: 'TRADITIONAL' as const,
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+      createdBy: 'seed',
+    },
+    {
+      title: 'Total Praise',
+      titleFR: 'Louange Totale',
+      author: 'Richard Smallwood',
+      composer: 'Richard Smallwood',
+      themes: ['Adoration', 'Chorale', 'Paix'],
+      bibleReferences: ['Psaume 121:1-2'],
+      key: 'Db',
+      tempo: 58,
+      timeSignature: '3/4',
+      language: 'EN' as const,
+      style: 'GOSPEL' as const,
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+      pdfScoreUrl: 'https://pdfobject.com/pdf/sample.pdf',
+      createdBy: 'seed',
+    },
+  ];
+
+  for (const s of testSongs) {
+    const song = await prisma.song.create({
+      data: {
+        ...s,
+        churchId: church.id,
+      },
+    });
+    console.log(`🎵 Created song: ${song.title} (${song.key})`);
+  }
+
   console.log('✅ Seed completed successfully!');
 }
 

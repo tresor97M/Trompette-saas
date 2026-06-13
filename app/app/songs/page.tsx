@@ -34,6 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Sample data
 const songsData = [
@@ -133,35 +134,85 @@ const formatDuration = (seconds: number) => {
 };
 
 export default function SongsPage() {
+  const { t, language } = useTranslation();
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [themeFilter, setThemeFilter] = React.useState<string>('all');
-  const [showFavorites, setShowFavorites] = React.useState(false);
+  const [languageFilter, setLanguageFilter] = React.useState<string>('all');
 
-  const filteredSongs = songsData.filter((song) => {
-    const matchesSearch =
-      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.author.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTheme = themeFilter === 'all' || song.themes.includes(themeFilter);
-    const matchesFavorite = !showFavorites || song.isFavorite;
-    return matchesSearch && matchesTheme && matchesFavorite;
-  });
+  const [songs, setSongs] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    async function loadSongs() {
+      setIsLoading(true);
+      try {
+        const queryParams = new URLSearchParams();
+        if (searchQuery) queryParams.set('search', searchQuery);
+        if (themeFilter !== 'all') queryParams.set('theme', themeFilter);
+        if (languageFilter !== 'all') queryParams.set('language', languageFilter);
+
+        const res = await fetch(`/api/songs?${queryParams.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch songs');
+        const data = await res.json();
+        if (active) {
+          setSongs(data);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'Error');
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      loadSongs();
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, themeFilter, languageFilter]);
+
+  const handleDeleteSong = async (id: string) => {
+    const confirmMessage = language === 'fr' 
+      ? 'Êtes-vous sûr de vouloir supprimer ce chant de la bibliothèque ?' 
+      : 'Are you sure you want to delete this song from the library?';
+      
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const res = await fetch(`/api/songs/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete song');
+      setSongs((prev) => prev.filter((s) => s.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Error deleting song');
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
-        title="Song Library"
-        description="Manage your worship songs, lyrics, and sheet music"
+        title={t('features.songs.title')}
+        description={t('features.songs.desc')}
       >
         <Button variant="outline">
           <Download className="h-4 w-4 mr-2" />
-          Export All
+          {language === 'fr' ? 'Tout exporter' : 'Export All'}
         </Button>
         <Button className="bg-brand-gold-500 hover:bg-brand-gold-400 text-brand-blue-900" asChild>
           <Link href="/app/songs/new">
             <Plus className="h-4 w-4 mr-2" />
-            Add Song
+            {language === 'fr' ? 'Ajouter un chant' : 'Add Song'}
           </Link>
         </Button>
       </PageHeader>
@@ -172,8 +223,8 @@ export default function SongsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Songs</p>
-                <p className="text-2xl font-bold">{songsData.length}</p>
+                <p className="text-sm text-muted-foreground">{language === 'fr' ? 'Total des chants' : 'Total Songs'}</p>
+                <p className="text-2xl font-bold">{songs.length}</p>
               </div>
               <Music className="h-8 w-8 text-muted-foreground" />
             </div>
@@ -183,9 +234,9 @@ export default function SongsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Favorites</p>
+                <p className="text-sm text-muted-foreground">{language === 'fr' ? 'Chants Favoris' : 'Favorites'}</p>
                 <p className="text-2xl font-bold text-brand-gold-500">
-                  {songsData.filter((s) => s.isFavorite).length}
+                  {songs.filter((s) => s.isFavorite).length}
                 </p>
               </div>
               <Heart className="h-8 w-8 text-brand-gold-500" />
@@ -234,28 +285,31 @@ export default function SongsPage() {
 
               {/* Theme Filter */}
               <Select value={themeFilter} onValueChange={setThemeFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Theme" />
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder={language === 'fr' ? 'Thème' : 'Theme'} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Themes</SelectItem>
-                  <SelectItem value="worship">Worship</SelectItem>
-                  <SelectItem value="praise">Praise</SelectItem>
-                  <SelectItem value="contemporary">Contemporary</SelectItem>
-                  <SelectItem value="hymn">Hymn</SelectItem>
-                  <SelectItem value="african_traditional">African Traditional</SelectItem>
-                  <SelectItem value="christmas">Christmas</SelectItem>
+                  <SelectItem value="all">{language === 'fr' ? 'Tous les thèmes' : 'All Themes'}</SelectItem>
+                  <SelectItem value="Adoration">{language === 'fr' ? 'Adoration' : 'Worship'}</SelectItem>
+                  <SelectItem value="Louange">{language === 'fr' ? 'Louange' : 'Praise'}</SelectItem>
+                  <SelectItem value="Action de grâce">{language === 'fr' ? 'Action de grâce' : 'Thanksgiving'}</SelectItem>
+                  <SelectItem value="Célébration">{language === 'fr' ? 'Célébration' : 'Celebration'}</SelectItem>
+                  <SelectItem value="Chorale">{language === 'fr' ? 'Chorale' : 'Choir'}</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Favorites Toggle */}
-              <Button
-                variant={showFavorites ? 'secondary' : 'outline'}
-                onClick={() => setShowFavorites(!showFavorites)}
-              >
-                <Heart className={`h-4 w-4 mr-2 ${showFavorites ? 'fill-brand-gold-500 text-brand-gold-500' : ''}`} />
-                Favorites
-              </Button>
+              {/* Language Filter */}
+              <Select value={languageFilter} onValueChange={setLanguageFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder={language === 'fr' ? 'Langue' : 'Language'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{language === 'fr' ? 'Toutes les langues' : 'All Languages'}</SelectItem>
+                  <SelectItem value="fr">{language === 'fr' ? 'Français' : 'French'}</SelectItem>
+                  <SelectItem value="en">{language === 'fr' ? 'Anglais' : 'English'}</SelectItem>
+                  <SelectItem value="bilingual">{language === 'fr' ? 'Bilingue' : 'Bilingual'}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* View Toggle */}
@@ -282,21 +336,31 @@ export default function SongsPage() {
       </Card>
 
       {/* Songs Grid/List */}
-      {filteredSongs.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-card rounded-2xl border border-border/50">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold-500"></div>
+          <span className="ml-3 mt-4 text-sm text-muted-foreground">{t('common.loading') || 'Chargement...'}</span>
+        </div>
+      ) : error ? (
+        <div className="p-6 text-center bg-destructive/10 text-destructive rounded-2xl border border-destructive/20">
+          <p className="font-semibold">{t('common.error') || 'Erreur'}</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      ) : songs.length === 0 ? (
         <EmptyState
           icon={Music}
-          title="No songs found"
-          description="Try adjusting your search or add a new song to the library."
-          action={{ label: 'Add Song', onClick: () => {} }}
+          title={language === 'fr' ? 'Aucun chant trouvé' : 'No songs found'}
+          description={language === 'fr' ? 'Essayez de modifier votre recherche ou ajoutez un nouveau chant.' : 'Try adjusting your search or add a new song to the library.'}
+          action={{ label: language === 'fr' ? 'Ajouter un chant' : 'Add Song', onClick: () => {} }}
         />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredSongs.map((song) => (
+          {songs.map((song) => (
             <Card key={song.id} className="group overflow-hidden hover:border-brand-gold-500/30 transition-colors">
               {/* Cover */}
               <div className="relative aspect-video bg-muted">
                 <img
-                  src={song.cover}
+                  src={song.cover || 'https://images.pexels.com/photos/1342375/pexels-photo-1342375.jpeg?auto=compress&cs=tinysrgb&w=300'}
                   alt={song.title}
                   className="w-full h-full object-cover"
                 />
@@ -308,9 +372,11 @@ export default function SongsPage() {
                 {song.isFavorite && (
                   <Heart className="absolute top-3 right-3 h-5 w-5 fill-brand-gold-500 text-brand-gold-500" />
                 )}
-                <div className="absolute bottom-3 right-3 bg-background/80 backdrop-blur-sm rounded px-2 py-1 text-xs">
-                  {formatDuration(song.duration)}
-                </div>
+                {song.duration && (
+                  <div className="absolute bottom-3 right-3 bg-background/80 backdrop-blur-sm rounded px-2 py-1 text-xs">
+                    {formatDuration(song.duration)}
+                  </div>
+                )}
               </div>
 
               {/* Info */}
@@ -330,20 +396,25 @@ export default function SongsPage() {
                       <DropdownMenuItem>Add to Setlist</DropdownMenuItem>
                       <DropdownMenuItem>View Details</DropdownMenuItem>
                       <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => handleDeleteSong(song.id)}
+                      >
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
                 <div className="flex flex-wrap gap-1 mt-3">
-                  {song.themes.slice(0, 2).map((theme) => (
-                    <Badge key={theme} className={themeColors[theme]} variant="secondary">
+                  {song.themes.slice(0, 2).map((theme: string) => (
+                    <Badge key={theme} className={themeColors[theme.toLowerCase()] || 'bg-brand-gold-500/10 text-brand-gold-600'} variant="secondary">
                       {theme.replace('_', ' ')}
                     </Badge>
                   ))}
                 </div>
                 <div className="flex items-center gap-3 mt-3 text-sm text-muted-foreground">
                   <span>Key: {song.key}</span>
-                  <span>BPM: {song.bpm}</span>
+                  {song.tempo && <span>BPM: {song.tempo}</span>}
                 </div>
               </CardContent>
             </Card>
@@ -352,7 +423,7 @@ export default function SongsPage() {
       ) : (
         <Card>
           <div className="divide-y">
-            {filteredSongs.map((song) => (
+            {songs.map((song) => (
               <div
                 key={song.id}
                 className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors group"
@@ -360,7 +431,7 @@ export default function SongsPage() {
                 {/* Cover */}
                 <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted shrink-0">
                   <img
-                    src={song.cover}
+                    src={song.cover || 'https://images.pexels.com/photos/1342375/pexels-photo-1342375.jpeg?auto=compress&cs=tinysrgb&w=300'}
                     alt={song.title}
                     className="w-full h-full object-cover"
                   />
@@ -379,8 +450,8 @@ export default function SongsPage() {
                   </div>
                   <p className="text-sm text-muted-foreground">{song.author}</p>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {song.themes.map((theme) => (
-                      <Badge key={theme} className={themeColors[theme]} variant="secondary">
+                    {song.themes.map((theme: string) => (
+                      <Badge key={theme} className={themeColors[theme.toLowerCase()] || 'bg-brand-gold-500/10 text-brand-gold-600'} variant="secondary">
                         {theme.replace('_', ' ')}
                       </Badge>
                     ))}
@@ -393,14 +464,18 @@ export default function SongsPage() {
                     <p className="font-medium text-foreground">{song.key}</p>
                     <p className="text-xs">Key</p>
                   </div>
-                  <div className="text-center">
-                    <p className="font-medium text-foreground">{song.bpm}</p>
-                    <p className="text-xs">BPM</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium text-foreground">{formatDuration(song.duration)}</p>
-                    <p className="text-xs">Duration</p>
-                  </div>
+                  {song.tempo && (
+                    <div className="text-center">
+                      <p className="font-medium text-foreground">{song.tempo}</p>
+                      <p className="text-xs">BPM</p>
+                    </div>
+                  )}
+                  {song.duration && (
+                    <div className="text-center">
+                      <p className="font-medium text-foreground">{formatDuration(song.duration)}</p>
+                      <p className="text-xs">Duration</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -418,7 +493,12 @@ export default function SongsPage() {
                       <DropdownMenuItem>Add to Setlist</DropdownMenuItem>
                       <DropdownMenuItem>View Details</DropdownMenuItem>
                       <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => handleDeleteSong(song.id)}
+                      >
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
