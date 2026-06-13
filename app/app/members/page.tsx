@@ -120,14 +120,63 @@ export default function MembersPage() {
   const [voiceFilter, setVoiceFilter] = React.useState<string>('all');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
 
-  const filteredMembers = membersData.filter((member) => {
-    const matchesSearch =
-      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesVoice = voiceFilter === 'all' || member.voiceType === voiceFilter;
-    const matchesStatus = statusFilter === 'all' || member.status === statusFilter;
-    return matchesSearch && matchesVoice && matchesStatus;
-  });
+  const [members, setMembers] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    async function loadMembers() {
+      setIsLoading(true);
+      try {
+        const queryParams = new URLSearchParams();
+        if (searchQuery) queryParams.set('search', searchQuery);
+        if (voiceFilter !== 'all') queryParams.set('voice', voiceFilter);
+        if (statusFilter !== 'all') queryParams.set('status', statusFilter);
+
+        const res = await fetch(`/api/members?${queryParams.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch members');
+        const data = await res.json();
+        if (active) {
+          setMembers(data);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'Error');
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      loadMembers();
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, voiceFilter, statusFilter]);
+
+  const handleDeleteMember = async (id: string) => {
+    const confirmMessage = language === 'fr' 
+      ? 'Êtes-vous sûr de vouloir supprimer ce choriste ?' 
+      : 'Are you sure you want to delete this member?';
+      
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete member');
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Error deleting member');
+    }
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -163,7 +212,7 @@ export default function MembersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">{t('members.total')}</p>
-                <p className="text-2xl font-bold">{membersData.length}</p>
+                <p className="text-2xl font-bold">{members.length}</p>
               </div>
               <Users className="h-8 w-8 text-muted-foreground" />
             </div>
@@ -175,7 +224,7 @@ export default function MembersPage() {
               <div>
                 <p className="text-sm text-muted-foreground">{t('members.active')}</p>
                 <p className="text-2xl font-bold text-brand-emerald-500">
-                  {membersData.filter((m) => m.status === 'active').length}
+                  {members.filter((m) => m.status === 'active').length}
                 </p>
               </div>
               <div className="h-8 w-8 rounded-full bg-brand-emerald-500/10 flex items-center justify-center">
@@ -190,7 +239,7 @@ export default function MembersPage() {
               <div>
                 <p className="text-sm text-muted-foreground">{t('members.onLeave')}</p>
                 <p className="text-2xl font-bold text-brand-gold-500">
-                  {membersData.filter((m) => m.status === 'on_leave').length}
+                  {members.filter((m) => m.status === 'on_leave').length}
                 </p>
               </div>
               <div className="h-8 w-8 rounded-full bg-brand-gold-500/10 flex items-center justify-center">
@@ -281,7 +330,17 @@ export default function MembersPage() {
       </Card>
 
       {/* Members List/Grid */}
-      {filteredMembers.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-card rounded-2xl border border-border/50">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold-500"></div>
+          <span className="ml-3 mt-4 text-sm text-muted-foreground">{t('common.loading') || 'Chargement...'}</span>
+        </div>
+      ) : error ? (
+        <div className="p-6 text-center bg-destructive/10 text-destructive rounded-2xl border border-destructive/20">
+          <p className="font-semibold">{t('common.error') || 'Erreur'}</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      ) : members.length === 0 ? (
         <EmptyState
           icon={Users}
           title={t('members.noMembers')}
@@ -301,7 +360,7 @@ export default function MembersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredMembers.map((member) => (
+              {members.map((member) => (
                 <TableRow key={member.id} className="group">
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -354,7 +413,10 @@ export default function MembersPage() {
                             <Phone className="h-4 w-4 mr-2" />
                             Call
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => handleDeleteMember(member.id)}
+                          >
                             <Trash className="h-4 w-4 mr-2" />
                             Remove
                           </DropdownMenuItem>
@@ -369,7 +431,7 @@ export default function MembersPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMembers.map((member) => (
+          {members.map((member) => (
             <Card key={member.id} className="group hover:border-brand-gold-500/30 transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
@@ -398,7 +460,12 @@ export default function MembersPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem>View Profile</DropdownMenuItem>
                       <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Remove</DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => handleDeleteMember(member.id)}
+                      >
+                        Remove
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
