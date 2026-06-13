@@ -1,0 +1,503 @@
+datasource db {
+  provider  = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── CHURCH (TENANT) ──────────────────────────────────────
+
+model Church {
+  id               String         @id @default(uuid())
+  name             String
+  slug             String         @unique
+  country          String
+  city             String
+  logoUrl          String?
+  primaryColor     String         @default("#C9A84C")
+  plan             PlanType       @default(FREE_TRIAL)
+  stripeCustomerId String?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  campuses         Campus[]
+  users            User[]
+  members          Member[]
+  songs            Song[]
+  events           Event[]
+  mediaFiles       MediaFile[]
+  announcements    Announcement[]
+  courses          Course[]
+
+  @@index([slug])
+}
+
+model Campus {
+  id        String   @id @default(uuid())
+  churchId  String
+  name      String
+  address   String?
+
+  church    Church   @relation(fields: [churchId], references: [id])
+  members   Member[]
+  events    Event[]
+}
+
+// ─── USER & AUTH ───────────────────────────────────────────
+
+model User {
+  id               String     @id @default(uuid())
+  churchId         String
+  email            String     @unique
+  passwordHash     String?
+  googleId         String?    @unique
+  microsoftId      String?    @unique
+  role             UserRole   @default(CHOIR_MEMBER)
+  isActive         Boolean    @default(true)
+  lastLoginAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  church           Church     @relation(fields: [churchId], references: [id])
+  member           Member?
+  auditLogs        AuditLog[]
+  sentMessages     Message[]  @relation("SentMessages")
+  receivedMessages Message[]  @relation("ReceivedMessages")
+
+  @@index([churchId, email])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  CHURCH_ADMIN
+  PASTOR
+  MUSIC_DIRECTOR
+  CHOIR_MASTER
+  SECTION_LEADER
+  CHOIR_MEMBER
+  INSTRUMENTALIST
+  TRAINING_COORDINATOR
+  GUEST
+}
+
+enum PlanType {
+  FREE_TRIAL
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// ─── MEMBER ────────────────────────────────────────────────
+
+model Member {
+  id                String           @id @default(uuid())
+  churchId          String
+  campusId          String?
+  userId            String?          @unique
+  firstName         String
+  lastName          String
+  email             String?
+  phone             String?
+  whatsappNumber    String?
+  address           String?
+  city              String?
+  country           String
+  birthday          DateTime?
+  gender            Gender           @default(PREFER_NOT_TO_SAY)
+  avatarUrl         String?
+
+  choirSection      ChoirSection     @default(UNASSIGNED)
+  voiceRange        String?
+  sectionId         String?
+
+  spiritualMentorId String?
+  emergencyContact  Json?
+
+  membershipStatus  MemberStatus     @default(ACTIVE)
+  dateJoined        DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  church            Church           @relation(fields: [churchId], references: [id])
+  campus            Campus?          @relation(fields: [campusId], references: [id])
+  user              User?            @relation(fields: [userId], references: [id])
+  section           Section?         @relation(fields: [sectionId], references: [id])
+  
+  mentor            Member?          @relation("MentorRelation", fields: [spiritualMentorId], references: [id])
+  mentees           Member[]         @relation("MentorRelation")
+  
+  attendances       Attendance[]
+  disciplineCases   DisciplineCase[]
+  trainingProgress  TrainingProgress[]
+
+  @@index([churchId, choirSection])
+}
+
+model Section {
+  id      String   @id @default(uuid())
+  name    String
+  members Member[]
+}
+
+enum ChoirSection {
+  SOPRANO
+  ALTO
+  TENOR
+  BASS
+  UNASSIGNED
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  RESTORED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  PREFER_NOT_TO_SAY
+}
+
+// ─── ATTENDANCE ────────────────────────────────────────────
+
+model Event {
+  id          String       @id @default(uuid())
+  churchId    String
+  campusId    String?
+  title       String
+  type        EventType
+  startTime   DateTime
+  endTime     DateTime
+  location    String?
+  qrToken     String?      @unique
+  qrExpiresAt DateTime?
+  createdAt   DateTime     @default(now())
+
+  church      Church       @relation(fields: [churchId], references: [id])
+  campus      Campus?      @relation(fields: [campusId], references: [id])
+  attendances Attendance[]
+  servicePlans ServicePlan[]
+
+  @@index([churchId, startTime])
+}
+
+enum EventType {
+  REHEARSAL
+  SUNDAY_SERVICE
+  SPECIAL_EVENT
+  TRAINING
+  PRAYER_MEETING
+}
+
+model Attendance {
+  id          String           @id @default(uuid())
+  eventId     String
+  memberId    String
+  status      AttendanceStatus @default(PRESENT)
+  checkedInAt DateTime?
+  method      CheckInMethod    @default(MANUAL)
+  note        String?
+  createdAt   DateTime         @default(now())
+
+  event       Event            @relation(fields: [eventId], references: [id])
+  member      Member           @relation(fields: [memberId], references: [id])
+
+  @@unique([eventId, memberId])
+  @@index([eventId])
+  @@index([memberId])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum CheckInMethod {
+  QR_CODE
+  MOBILE
+  MANUAL
+}
+
+// ─── SONGS ─────────────────────────────────────────────────
+
+model Song {
+  id              String        @id @default(uuid())
+  churchId        String
+  title           String
+  titleFR         String?
+  author          String
+  composer        String?
+  themes          String[]
+  bibleReferences String[]
+  key             String?
+  tempo           Int?
+  timeSignature   String?
+  language        SongLanguage  @default(EN)
+  style           SongStyle
+  leadSingerId    String?
+  audioUrl        String?
+  videoUrl        String?
+  pdfScoreUrl     String?
+  midiUrl         String?
+  isAiGenerated   Boolean       @default(false)
+  usageCount      Int           @default(0)
+  createdBy       String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  church          Church        @relation(fields: [churchId], references: [id])
+  setlistSongs    SetlistSong[]
+
+  @@index([churchId, language])
+  @@index([churchId, themes])
+}
+
+enum SongLanguage {
+  FR
+  EN
+  BILINGUAL
+  OTHER
+}
+
+enum SongStyle {
+  CONTEMPORARY
+  GOSPEL
+  HYMN
+  TRADITIONAL
+}
+
+// ─── WORSHIP PLANNING ──────────────────────────────────────
+
+model ServicePlan {
+  id          String           @id @default(uuid())
+  churchId    String
+  eventId     String
+  title       String
+  notes       String?
+  publishedAt DateTime?
+  createdBy   String
+  createdAt   DateTime         @default(now())
+
+  event       Event            @relation(fields: [eventId], references: [id])
+  setlist     SetlistSong[]
+  assignments TeamAssignment[]
+}
+
+model SetlistSong {
+  id            String      @id @default(uuid())
+  servicePlanId String
+  songId        String
+  order         Int
+  key           String?
+  notes         String?
+
+  servicePlan   ServicePlan @relation(fields: [servicePlanId], references: [id])
+  song          Song        @relation(fields: [songId], references: [id])
+}
+
+model TeamAssignment {
+  id            String      @id @default(uuid())
+  servicePlanId String
+  memberId      String
+  role          String
+
+  servicePlan   ServicePlan @relation(fields: [servicePlanId], references: [id])
+}
+
+// ─── DISCIPLINE ────────────────────────────────────────────
+
+model DisciplineCase {
+  id          String               @id @default(uuid())
+  churchId    String
+  memberId    String
+  status      DisciplineStatus     @default(OPEN)
+  description String
+  step        Int                  @default(1)
+  resolution  String?
+  openedAt    DateTime             @default(now())
+  closedAt    DateTime?
+  createdBy   String
+
+  member      Member               @relation(fields: [memberId], references: [id])
+  followUps   DisciplineFollowUp[]
+}
+
+enum DisciplineStatus {
+  OPEN
+  IN_PROGRESS
+  SUSPENDED
+  RESTORED
+  CLOSED
+}
+
+model DisciplineFollowUp {
+  id        String         @id @default(uuid())
+  caseId    String
+  note      String
+  dueDate   DateTime?
+  doneAt    DateTime?
+  createdBy String
+  createdAt DateTime       @default(now())
+
+  case      DisciplineCase @relation(fields: [caseId], references: [id])
+}
+
+// ─── TRAINING ──────────────────────────────────────────────
+
+model Course {
+  id            String             @id @default(uuid())
+  churchId      String
+  title         String
+  titleFR       String
+  description   String
+  category      CourseCategory
+  level         CourseLevel
+  durationHours Float
+  language      SongLanguage
+  createdBy     String
+  createdAt     DateTime           @default(now())
+
+  church        Church             @relation(fields: [churchId], references: [id])
+  modules       CourseModule[]
+  progress      TrainingProgress[]
+}
+
+model CourseModule {
+  id       String   @id @default(uuid())
+  courseId String
+  title    String
+
+  course   Course   @relation(fields: [courseId], references: [id])
+  lessons  Lesson[]
+}
+
+model Lesson {
+  id       String     @id @default(uuid())
+  moduleId String
+  title    String
+  type     LessonType
+  content  String
+  duration Int
+
+  module   CourseModule @relation(fields: [moduleId], references: [id])
+}
+
+enum LessonType {
+  VIDEO
+  AUDIO
+  TEXT
+  INTERACTIVE
+}
+
+model TrainingProgress {
+  id          String    @id @default(uuid())
+  courseId    String
+  memberId    String
+  percent     Float     @default(0)
+  completedAt DateTime?
+
+  course      Course    @relation(fields: [courseId], references: [id])
+  member      Member    @relation(fields: [memberId], references: [id])
+
+  @@unique([courseId, memberId])
+}
+
+enum CourseCategory {
+  MUSIC_THEORY
+  SIGHT_READING
+  CONDUCTING
+  VOCAL_TECHNIQUE
+  PIANO
+  GUITAR
+  BASS
+  DRUMS
+  WORSHIP_THEOLOGY
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// ─── COMMUNICATION ─────────────────────────────────────────
+
+model Announcement {
+  id          String     @id @default(uuid())
+  churchId    String
+  title       String
+  body        String
+  targetRoles UserRole[]
+  publishedAt DateTime   @default(now())
+  createdBy   String
+
+  church      Church     @relation(fields: [churchId], references: [id])
+}
+
+model PrayerRequest {
+  id          String   @id @default(uuid())
+  churchId    String
+  memberId    String
+  content     String
+  isAnonymous Boolean  @default(false)
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id          String    @id @default(uuid())
+  senderId    String
+  recipientId String
+  content     String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  sender      User      @relation("SentMessages", fields: [senderId], references: [id])
+  recipient   User      @relation("ReceivedMessages", fields: [recipientId], references: [id])
+}
+
+// ─── MEDIA ─────────────────────────────────────────────────
+
+model MediaFile {
+  id         String    @id @default(uuid())
+  churchId   String
+  name       String
+  type       MediaType
+  url        String
+  sizeBytes  Int
+  uploadedBy String
+  createdAt  DateTime  @default(now())
+
+  church     Church    @relation(fields: [churchId], references: [id])
+}
+
+enum MediaType {
+  AUDIO
+  VIDEO
+  IMAGE
+  PDF
+  DOCUMENT
+}
+
+// ─── AUDIT LOG ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
