@@ -17,5 +17,8 @@ export function comparePassword(password: string, stored: string): boolean {
   const [salt, key] = stored.split(':');
   if (!salt || !key) return false;
   const hash = scryptSync(password, salt, 64).toString('hex');
-  return timingSafeEqual(Buffer.from(key, 'hex'), Buffer.from(hash, 'hex'));
+  return timingSafeEqual(
+    new Uint8Array(Buffer.from(key, 'hex')),
+    new Uint8Array(Buffer.from(hash, 'hex'))
+  );
 }
