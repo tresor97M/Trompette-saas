@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/shared';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/stores';
 import {
   AttendanceChart,
   MemberGrowthChart,
@@ -24,7 +25,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Sample data
+// Sample data for charts
 const attendanceData = [
   { date: 'Jan', present: 45, absent: 5, excused: 2 },
   { date: 'Feb', present: 48, absent: 4, excused: 1 },
@@ -43,59 +44,6 @@ const memberGrowthData = [
   { month: 'Jun', newMembers: 6, totalMembers: 67 },
 ];
 
-const voiceDistributionData = [
-  { name: 'Soprano', value: 22, color: '#D4AF37' },
-  { name: 'Alto', value: 18, color: '#10B981' },
-  { name: 'Tenor', value: 15, color: '#A855F7' },
-  { name: 'Bass', value: 12, color: '#0F172A' },
-];
-
-const upcomingEvents = [
-  {
-    id: '1',
-    title: 'Weekly Rehearsal',
-    titleFR: 'Répétition hebdomadaire',
-    date: 'Saturday, Dec 14',
-    dateFR: 'Samedi 14 Déc',
-    time: '3:00 PM - 6:00 PM',
-    timeFR: '15h00 - 18h00',
-    location: 'Main Church Hall',
-    type: 'rehearsal' as const,
-    attendees: 45,
-  },
-  {
-    id: '2',
-    title: 'Sunday Service',
-    titleFR: 'Culte de Dimanche',
-    date: 'Sunday, Dec 15',
-    dateFR: 'Dimanche 15 Déc',
-    time: '9:00 AM - 12:00 PM',
-    timeFR: '09h00 - 12h00',
-    location: 'Sanctuary',
-    type: 'service' as const,
-    attendees: 67,
-  },
-  {
-    id: '3',
-    title: 'Christmas Concert Practice',
-    titleFR: 'Répétition Concert de Noël',
-    date: 'Wednesday, Dec 18',
-    dateFR: 'Mercredi 18 Déc',
-    time: '5:00 PM - 8:00 PM',
-    timeFR: '17h00 - 20h00',
-    location: 'Main Church Hall',
-    type: 'rehearsal' as const,
-    attendees: 50,
-  },
-];
-
-const recentSongs = [
-  { id: '1', title: 'Great Is Thy Faithfulness', author: 'Thomas Chisholm', key: 'G' },
-  { id: '2', title: 'How Great Is Our God', author: 'Chris Tomlin', key: 'C' },
-  { id: '3', title: 'What A Beautiful Name', author: 'Hillsong Worship', key: 'D' },
-  { id: '4', title: '10,000 Reasons', author: 'Matt Redman', key: 'E' },
-];
-
 const activityFeed = [
   { id: '1', user: 'Sarah Williams', time: '2h', timeFR: '2h', type: 'member' },
   { id: '2', user: 'John Doe', time: '5h', timeFR: '5h', type: 'song' },
@@ -111,6 +59,66 @@ const prayerRequests = [
 
 export default function DashboardPage() {
   const { t, language } = useTranslation();
+  const { user } = useAuthStore();
+
+  const [stats, setStats] = React.useState({
+    membersCount: 67,
+    songsCount: 156,
+    eventsCount: 8,
+    attendanceRate: 89,
+  });
+  const [recentSongs, setRecentSongs] = React.useState<any[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = React.useState<any[]>([]);
+  const [voiceDistribution, setVoiceDistribution] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function loadDashboardStats() {
+      try {
+        const res = await fetch('/api/dashboard/stats');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.kpis) {
+            setStats(data.kpis);
+          }
+          if (data.recentSongs && data.recentSongs.length > 0) {
+            setRecentSongs(data.recentSongs);
+          } else {
+            setRecentSongs([
+              { id: '1', title: 'Great Is Thy Faithfulness', author: 'Thomas Chisholm', key: 'G' },
+              { id: '2', title: 'How Great Is Our God', author: 'Chris Tomlin', key: 'C' },
+              { id: '3', title: 'What A Beautiful Name', author: 'Hillsong Worship', key: 'D' },
+              { id: '4', title: '10,000 Reasons', author: 'Matt Redman', key: 'E' },
+            ]);
+          }
+          if (data.upcomingEvents && data.upcomingEvents.length > 0) {
+            setUpcomingEvents(data.upcomingEvents);
+          } else {
+            setUpcomingEvents([
+              { id: '1', title: 'Weekly Rehearsal', titleFR: 'Répétition hebdomadaire', date: 'Saturday, Dec 14', dateFR: 'Samedi 14 Déc', time: '3:00 PM - 6:00 PM', timeFR: '15h00 - 18h00', location: 'Main Church Hall', type: 'rehearsal' as const, attendees: 45 },
+              { id: '2', title: 'Sunday Service', titleFR: 'Culte de Dimanche', date: 'Sunday, Dec 15', dateFR: 'Dimanche 15 Déc', time: '9:00 AM - 12:00 PM', timeFR: '09h00 - 12h00', location: 'Sanctuary', type: 'service' as const, attendees: 67 },
+              { id: '3', title: 'Christmas Concert Practice', titleFR: 'Répétition Concert de Noël', date: 'Wednesday, Dec 18', dateFR: 'Mercredi 18 Déc', time: '5:00 PM - 8:00 PM', timeFR: '17h00 - 20h00', location: 'Main Church Hall', type: 'rehearsal' as const, attendees: 50 },
+            ]);
+          }
+          if (data.voiceDistribution && data.voiceDistribution.length > 0) {
+            setVoiceDistribution(data.voiceDistribution);
+          } else {
+            setVoiceDistribution([
+              { name: 'Soprano', value: 22, color: '#D4AF37' },
+              { name: 'Alto', value: 18, color: '#10B981' },
+              { name: 'Tenor', value: 15, color: '#A855F7' },
+              { name: 'Bass', value: 12, color: '#0F172A' },
+            ]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard statistics', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadDashboardStats();
+  }, []);
 
   const getActivityAction = (type: string) => {
     switch (type) {
@@ -132,17 +140,21 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{t('dashboard.welcome')} John</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('dashboard.welcome')} {user ? user.firstName : 'John'}</h1>
           <p className="text-muted-foreground mt-1">{t('dashboard.subtitle')}</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline">
-            <Calendar className="h-4 w-4 mr-2" />
-            {t('dashboard.schedule')}
+          <Button variant="outline" asChild>
+            <Link href="/app/worship">
+              <Calendar className="h-4 w-4 mr-2" />
+              {t('dashboard.schedule')}
+            </Link>
           </Button>
-          <Button className="bg-brand-gold-500 hover:bg-brand-gold-400 text-brand-blue-900">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('dashboard.quickAdd')}
+          <Button className="bg-brand-gold-500 hover:bg-brand-gold-400 text-brand-blue-900" asChild>
+            <Link href="/app/members/new">
+              <Plus className="h-4 w-4 mr-2" />
+              {t('dashboard.quickAdd')}
+            </Link>
           </Button>
         </div>
       </div>
@@ -151,7 +163,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('dashboard.kpi.members')}
-          value={67}
+          value={stats.membersCount}
           subtitle={t('dashboard.kpi.membersSubtitle')}
           icon={Users}
           iconColor="text-brand-gold-500"
@@ -160,7 +172,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title={t('dashboard.kpi.attendance')}
-          value="89%"
+          value={`${stats.attendanceRate}%`}
           icon={CalendarCheck}
           iconColor="text-brand-emerald-500"
           trend={{ value: 5, direction: 'up', label: t('dashboard.kpi.trend') }}
@@ -168,7 +180,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title={t('dashboard.kpi.events')}
-          value={8}
+          value={stats.eventsCount}
           subtitle={t('dashboard.kpi.eventsSubtitle')}
           icon={Calendar}
           iconColor="text-brand-purple-500"
@@ -176,7 +188,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title={t('dashboard.kpi.songs')}
-          value={156}
+          value={stats.songsCount}
           subtitle={t('dashboard.kpi.songsSubtitle')}
           icon={Music}
           iconColor="text-brand-blue-500"
@@ -196,7 +208,9 @@ export default function DashboardPage() {
                 <CardTitle className="text-lg">{t('dashboard.charts.attendance')}</CardTitle>
                 <CardDescription>{t('dashboard.charts.attendanceDesc')}</CardDescription>
               </div>
-              <Button variant="outline" size="sm">{t('dashboard.charts.viewReport')}</Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/app/attendance">{t('dashboard.charts.viewReport')}</Link>
+              </Button>
             </CardHeader>
             <CardContent>
               <AttendanceChart data={attendanceData} height={280} />
@@ -221,7 +235,7 @@ export default function DashboardPage() {
                 <CardDescription>{t('dashboard.charts.voicesDesc')}</CardDescription>
               </CardHeader>
               <CardContent>
-                <VoiceDistributionChart data={voiceDistributionData} height={200} />
+                <VoiceDistributionChart data={voiceDistribution} height={200} />
               </CardContent>
             </Card>
           </div>
@@ -247,8 +261,8 @@ export default function DashboardPage() {
                     <Calendar className={`h-4 w-4 ${event.type === 'service' ? 'text-brand-gold-500' : 'text-brand-purple-500'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{language === 'fr' ? event.titleFR : event.title}</p>
-                    <p className="text-xs text-muted-foreground">{language === 'fr' ? event.dateFR : event.date}</p>
+                    <p className="font-medium truncate">{language === 'fr' ? event.dateFR : event.date}</p>
+                    <p className="text-xs text-muted-foreground truncate">{language === 'fr' ? event.titleFR : event.title}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
@@ -262,9 +276,9 @@ export default function DashboardPage() {
                 </div>
               ))}
               <Button variant="outline" className="w-full" asChild>
-                <Link href="/app/worship/new">
+                <Link href="/app/worship">
                   <Plus className="h-4 w-4 mr-2" />
-                  {t('dashboard.events.scheduleEvent')}
+                  Planifier un évènement
                 </Link>
               </Button>
             </CardContent>
@@ -277,7 +291,7 @@ export default function DashboardPage() {
                 {t('dashboard.prayers.title')}
                 <Badge className="ml-1">{prayerRequests.length}</Badge>
               </CardTitle>
-              <Link href="/app/communication/prayer" className="text-sm text-brand-gold-500 hover:text-brand-gold-400">
+              <Link href="/app/communication" className="text-sm text-brand-gold-500 hover:text-brand-gold-400">
                 {t('common.viewAll')}
               </Link>
             </CardHeader>

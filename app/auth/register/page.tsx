@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores';
 
 const registerSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -40,6 +41,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { login } = useAuthStore();
   const [isLoading, setIsLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [step, setStep] = React.useState(1);
@@ -74,17 +76,34 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast({
-        title: 'Account created!',
-        description: 'Please check your email to verify your account.',
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          firstName: data.firstName,
+          lastName: data.lastName,
+        }),
       });
-      router.push('/auth/verify-email?email=' + encodeURIComponent(data.email));
-    } catch {
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Something went wrong during registration');
+      }
+
+      const newUser = await res.json();
+      login(newUser);
+
       toast({
-        title: 'Error',
-        description: 'Something went wrong. Please try again.',
+        title: 'Compte créé !',
+        description: 'Bienvenue sur ChoirHub Africa.',
+      });
+      router.push('/app/dashboard');
+    } catch (err: any) {
+      toast({
+        title: 'Erreur',
+        description: err.message || 'Impossible de créer le compte. Veuillez réessayer.',
         variant: 'destructive',
       });
     } finally {

@@ -1,10 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
-import { useSidebarStore } from '@/stores';
+import { useSidebarStore, useAuthStore } from '@/stores';
 
 const breadcrumbMap: Record<string, { label: string; href?: string }> = {
   '/app': { label: 'Home' },
@@ -32,7 +32,15 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isOpen, toggle } = useSidebarStore();
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/auth/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   // Generate breadcrumbs
   const breadcrumbs = React.useMemo(() => {
@@ -54,6 +62,14 @@ export default function AppLayout({
     return crumbs;
   }, [pathname]);
 
+  if (isLoading || (!isAuthenticated && !user)) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-gold-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
@@ -65,9 +81,9 @@ export default function AppLayout({
         <Header
           breadcrumbs={breadcrumbs}
           user={{
-            name: 'John Doe',
-            email: 'john@church.com',
-            avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150',
+            name: user ? `${user.firstName} ${user.lastName}` : 'Utilisateur',
+            email: user?.email || '',
+            avatar: user?.avatar || undefined,
           }}
           onMobileMenuToggle={toggle}
         />

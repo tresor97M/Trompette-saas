@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -23,6 +24,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { login } = useAuthStore();
   const [isLoading, setIsLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
 
@@ -44,17 +46,29 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: data.email, password: data.password }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Invalid email or password');
+      }
+
+      const loggedUser = await res.json();
+      login(loggedUser);
+
       toast({
-        title: 'Welcome back!',
-        description: 'You have been signed in successfully.',
+        title: 'Connexion réussie',
+        description: 'Bienvenue de retour !',
       });
       router.push('/app/dashboard');
-    } catch {
+    } catch (err: any) {
       toast({
-        title: 'Error',
-        description: 'Invalid email or password. Please try again.',
+        title: 'Erreur',
+        description: err.message || 'Email ou mot de passe invalide. Veuillez réessayer.',
         variant: 'destructive',
       });
     } finally {
