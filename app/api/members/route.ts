@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { ChoirSection, MemberStatus } from '@prisma/client';
+import { ChoirSection, MemberStatus, Member } from '@prisma/client';
 
 // Helper to find or create the default test church
 async function getOrCreateTestChurch() {
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     });
 
     // Map Prisma models to match the page frontend data structure
-    const formattedMembers = members.map((m) => ({
+    const formattedMembers = members.map((m: Member) => ({
       id: m.id,
       name: `${m.firstName} ${m.lastName}`,
       email: m.email || '',
